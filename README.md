@@ -17,6 +17,8 @@ python examples/benchmark.py
 
 Demo writes `out/request.json`, `out/history.json`, a frozen plan, disclosed target outcomes, simulated execution and new history. It prints selected IDs, reserved seconds and history sizes. Benchmark writes the full per-policy report to `out/benchmark.json`; it includes an adverse exploration case. All fixtures are explicitly synthetic and published in `examples/fixtures.py`.
 
+Expected demo output: selected `fresh, overlap, search, smoke`; reserve 7.5 seconds; 3 frontier points; history 135 -> 139 attempts. If the console script directory is not on PATH, use `python -m testbudget` in place of `testbudget`. The 11-case benchmark's measured synthetic catches, including losses to simple baselines, are recorded in [benchmark evidence](docs/BENCHMARK.md).
+
 ```console
 testbudget select --request out/request.json --history out/history.json --out out/cli-plan.json
 testbudget simulate --plan out/cli-plan.json --outcomes out/outcomes.json --out out/cli-run.json

@@ -12,6 +12,15 @@ from test_core import request, row, unit
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_exploration_rotates_after_history_record(self):
+        req = request([unit("a"), unit("b")], budget_seconds=1, exploration_min=1, stale_after=5)
+        p = select(req, [])
+        self.assertEqual(p["selected"], ["a"])
+        hist = record(p, simulate(p, {"a": [True]}), [])
+        req["revision"] += 1
+        next_plan = select(req, hist)
+        self.assertEqual(next_plan["selected"], ["b"])
+
     def test_failed_serialization_and_replace_preserve_snapshot_clean_temp(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "snapshot.json"

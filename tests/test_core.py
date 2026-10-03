@@ -40,6 +40,13 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(f["noise_exact"], "1")
         self.assertEqual(plan["selected"], [])
 
+    def test_all_flaky_hard_stale_exploration_still_selects(self):
+        hist = [row("x", 1, True), row("x", 1, False, 2), row("y", 1, True), row("y", 1, False, 2)]
+        plan = select(request([unit("x"), unit("y")], exploration_min=1, stale_after=5, budget_seconds=1), hist)
+        self.assertEqual(plan["selected"], ["x"])
+        self.assertLess(Fraction(plan["utility_exact"]), 0)
+        self.assertEqual(plan["reasons"]["x"]["removal_violations"], ["exploration"])
+
     def test_retries_do_not_inflate_revision_signal(self):
         hist = [row("x", 1, True), row("x", 2, False)]
         repeated = hist + [row("x", 2, False, i) for i in range(2, 101)]
@@ -161,6 +168,17 @@ class ValidationTests(unittest.TestCase):
                 select(request([unit("x")]), [row("x", 1, True), duplicate])
         with self.assertRaises(InputError):
             select(request([unit("x")], typo=1), [])
+
+    def test_input_support_bounds_history_numbers(self):
+        for invalid in [0, -1, float("nan"), float("inf"), True]:
+            entry = row("x", 1, True)
+            entry["duration_seconds"] = invalid
+            with self.assertRaises(InputError):
+                select(request([unit("x")]), [entry])
+        with self.assertRaises(InputError):
+            select(request([unit("x", 10**12, runs=2)]), [])
+        with self.assertRaises(InputError):
+            select(request([], max_states=2097153), [])
 
 
 if __name__ == "__main__":

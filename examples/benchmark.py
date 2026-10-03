@@ -5,7 +5,7 @@ from itertools import combinations
 import json
 from pathlib import Path
 
-from fixtures import cases
+from fixtures import cases, walk_forward
 from testbudget import select, violations
 from testbudget.workflow import save_json
 
@@ -85,6 +85,8 @@ def replay(name, req, history, reveal):
 def main():
     report = {"synthetic": True, "disclosure": "Deterministic illustrative injected defect labels, not real CI data or calibrated prediction accuracy. Policies have identical visible prior history/catalogue/reserved costs/budget; constrained variants have identical requirements. Both ablations may violate original constraints as separately reported. No executed external incumbent comparison.", "cases": []}
     for name, req, history, outcomes, labels in cases():
+        report["cases"].append(replay(name, req, history, lambda o=outcomes, l=labels: (o, l)))
+    for name, req, history, outcomes, labels in walk_forward():
         report["cases"].append(replay(name, req, history, lambda o=outcomes, l=labels: (o, l)))
     save_json("out/benchmark.json", report)
     print(json.dumps({"synthetic": True, "cases": [{"name": c["case"], "policy": {p: {"caught": len(v["caught_distinct_injected_regressions"]), "missed": len(v["missed_distinct_injected_regressions"]), "seconds": v["simulated_executed_seconds"], "violations": v["constraint_violations"]} for p, v in c["policies"].items()}} for c in report["cases"]]}, indent=2))

@@ -38,7 +38,7 @@ def cases():
         ("exploration-adverse-tight-budget", 4.5, {"known": "checkout-regression"}),
         ("exploration-displaces-known-search-regression", 4.5, {"search": "search-regression"}),
         ("no-regression-flaky-noise", 7.5, {}),
-        ("unpredicted-search-regression", 4.5, {"search": "search-regression"}),
+        ("unpredicted-fast-regression", 4.5, {"fast": "utility-regression"}),
     ]
     result = []
     for name, budget, labels in definitions:
@@ -54,3 +54,32 @@ def cases():
     outcomes = {t["id"]: ([False, True] if t["id"] == "noise" else [t["id"] not in labels]) for t in req["tests"]}
     result.append(("correlated-redundancy", req, deepcopy(history), outcomes, labels))
     return result
+
+
+def walk_forward():
+    """Five full-suite logged revisions with independent hypothetical injections.
+
+    One new runner unit is introduced at each revision. The caller receives its
+    catalogue now; its target outcomes can be revealed only after all decisions.
+    Earlier full-suite logs are common counterfactual input to every policy.
+    """
+    request, history = fixture()
+    request["tests"] = [t for t in request["tests"] if t["id"] != "fresh"]
+    injections = [
+        {"new-10": "new-10-defect"},
+        {"known": "checkout-11", "overlap": "checkout-11"},
+        {"search": "search-12"},
+        {"new-13": "new-13-defect", "fast": "unexpected-utility-13"},
+        {},
+    ]
+    budgets = [7.5, 4.5, 5.5, 7.5, 4.5]
+    for offset, labels in enumerate(injections):
+        revision = 10 + offset
+        request["revision"] = revision
+        request["budget_seconds"] = budgets[offset]
+        request["tests"].append({"id": f"new-{revision}", "duration_seconds": [3, 2, 1, 3, 2][offset], "group": "integration", "risk_group": f"new-family-{revision}", "tags": ["integration"]})
+        outcomes = {t["id"]: ([False, True] if t["id"] == "noise" else [t["id"] not in labels]) for t in request["tests"]}
+        yield f"walk-forward-{revision}", deepcopy(request), deepcopy(history), outcomes, labels
+        # Advance only after the consumer froze and evaluated the current round.
+        for t in request["tests"]:
+            history.extend({"test_id": t["id"], "revision": revision, "attempt": i + 1, "passed": passed, "duration_seconds": t["duration_seconds"]} for i, passed in enumerate(outcomes[t["id"]]))

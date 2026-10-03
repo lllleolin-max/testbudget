@@ -29,3 +29,29 @@ Before: `a0cce43472c66df5c13c002c1e74d68af39a35d0`. The atomic writer's exceptio
 Correction: one outer try/finally now encloses serialization, fsync and replacement, closes the stream before deletion, and cleans failure paths after the handle is closed. Regression tests independently exercise nonserializable sets, nonfinite JSON and injected replacement failure, requiring the old contents and no residual temp files.
 
 Verification: normal wheel rebuild/reinstall; `python tests/review_probes.py 3` prints `serialization_error: TypeError` and only `snapshot.json`, exit 0. Full suite passes 23 tests. All three probes, demo and benchmark execute on the updated normal wheel. After commit is recorded in the final evidence entry. Remaining boundary: externally killed processes may leave a temp file; no multiwriter lock or OS sandbox is claimed.
+
+Cycle 3 after: `b9327676f9c5015c62f64c2a19105c7e2a5f490d`.
+
+## Additional evidence completion
+
+Added a true five-round walk-forward common-history replay (target 10..14), explicit losses to hard-constraint-respecting baselines, tests for reveal ordering/cutoff, all-flaky hard exploration, history numeric/support bounds, and exploration rotation after recording. These are additional evidence improvements, **not counted as any of the three correction cycles**. On the wheel, 28 tests pass, including 50 generated exhaustive oracle cases and all 11 executable benchmark cases. Tests do not demonstrate calibration or real deployment safety. CI matrix is declared for Ubuntu/Windows and Python 3.11/3.14; remote CI has not run at local completion.
+
+To reproduce from any reviewed checkout in a fresh environment:
+
+```console
+python -m venv .venv-review
+# Windows: .venv-review\Scripts\python.exe ; POSIX: .venv-review/bin/python
+python -m pip wheel . --no-deps --wheel-dir dist
+python -m pip install --no-deps --force-reinstall dist/testbudget-0.1.0-py3-none-any.whl
+python -m unittest discover -s tests -v
+python tests/review_probes.py 1
+python tests/review_probes.py 2
+python tests/review_probes.py 3
+python examples/demo.py
+python examples/benchmark.py
+python -m testbudget select --request out/request.json --history out/history.json --out out/cli-plan.json
+python -m testbudget simulate --plan out/cli-plan.json --outcomes out/outcomes.json --out out/cli-run.json
+python -m testbudget record --plan out/cli-plan.json --execution out/cli-run.json --history out/history.json --out out/cli-next.json
+```
+
+Use the selected venv interpreter for each `python` command (or activate that venv first). The old before states can be checked without mutating this checkout by extracting the exact prior commit into a separate temporary directory, building its normal wheel and running the current standalone probe against that installed old wheel. Historical probes intentionally fail as described above; current probes pass. Frozen final SHA is provided in the handoff because an artifact cannot embed its own Git SHA without changing it.
