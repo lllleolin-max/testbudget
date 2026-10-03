@@ -20,6 +20,18 @@ def request(tests, **extra):
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_first_failure_is_unknown_regression_not_positive_proxy(self):
+        for hist in [[row("x", 1, False)], [row("x", 1, False), row("x", 2, False)], [row("x", 1, True), row("x", 2, True), row("x", 2, False, 2), row("x", 3, False)]]:
+            f = select(request([unit("x")]), hist)["features"]["x"]
+            self.assertEqual(f["signal_exact"], "0")
+            self.assertEqual(f["post_pass_failed_revisions"], 0)
+
+    def test_established_pass_then_persistent_fail_support(self):
+        f = select(request([unit("x")]), [row("x", 1, True), row("x", 2, False), row("x", 3, False)])["features"]["x"]
+        self.assertEqual(f["post_pass_failed_revisions"], 2)
+        self.assertEqual(f["pass_to_fail_transitions"], 1)
+        self.assertEqual(f["signal_exact"], "3/7")
+
     def test_same_revision_flakiness_not_regression(self):
         hist = [row("flaky", rev, passed, i + 1) for rev in range(1, 6) for i, passed in enumerate([True, False, False])]
         plan = select(request([unit("flaky")]), hist)

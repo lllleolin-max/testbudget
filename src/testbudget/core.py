@@ -106,8 +106,9 @@ def evidence(request: dict, prior: list[dict]) -> dict[str, dict]:
     result = {}
     for test in request["tests"]:
         rows = by_test[(test["id"], test["environment"])]
-        mixed = stable = failed = transitions = opportunities = 0
+        mixed = stable = failed = transitions = opportunities = post_pass_failed = 0
         previous = None
+        pass_baseline = False
         attempts = raw_failed = 0
         for _, outcomes in sorted(rows.items()):
             attempts += len(outcomes)
@@ -115,18 +116,26 @@ def evidence(request: dict, prior: list[dict]) -> dict[str, dict]:
             if any(outcomes) and not all(outcomes):
                 mixed += 1
                 previous = None  # Mixed evidence cannot establish a stable transition.
+                pass_baseline = False
                 continue
             state = not all(outcomes)
             stable += 1
             failed += int(state)
+            if state and pass_baseline:
+                post_pass_failed += 1
+            if not state:
+                pass_baseline = True
             if previous is not None:
                 opportunities += 1
                 transitions += int(not previous and state)
             previous = state
-        signal = Fraction(failed + transitions, stable + opportunities + 2)
+        # Stable failures alone include pre-existing broken tests. Only a prior
+        # observed pass in the same uninterrupted stable segment supports this
+        # between-revision proxy; repeated post-transition failures add support.
+        signal = Fraction(post_pass_failed + transitions, stable + opportunities + 2)
         noise = Fraction(mixed, len(rows)) if rows else Fraction(0)
         last = max(rows) if rows else None
-        result[test["id"]] = {"prior_revisions": len(rows), "stable_revisions": stable, "mixed_revisions": mixed, "stable_failed_revisions": failed, "pass_to_fail_transitions": transitions, "transition_opportunities": opportunities, "attempts": attempts, "raw_failed_attempts": raw_failed, "last_revision": last, "exploration_eligible": last is None or request["revision"] - last >= request["stale_after"], "signal_exact": str(signal), "noise_exact": str(noise), "raw_failure_rate_exact": str(Fraction(raw_failed, attempts) if attempts else Fraction(0))}
+        result[test["id"]] = {"prior_revisions": len(rows), "stable_revisions": stable, "mixed_revisions": mixed, "stable_failed_revisions": failed, "post_pass_failed_revisions": post_pass_failed, "pass_to_fail_transitions": transitions, "transition_opportunities": opportunities, "attempts": attempts, "raw_failed_attempts": raw_failed, "last_revision": last, "exploration_eligible": last is None or request["revision"] - last >= request["stale_after"], "signal_exact": str(signal), "noise_exact": str(noise), "raw_failure_rate_exact": str(Fraction(raw_failed, attempts) if attempts else Fraction(0))}
     return result
 
 

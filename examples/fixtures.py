@@ -36,6 +36,7 @@ def cases():
     definitions = [
         ("new-regression-exploration", 7.5, {"fresh": "parser-regression", "known": "checkout-regression"}),
         ("exploration-adverse-tight-budget", 4.5, {"known": "checkout-regression"}),
+        ("exploration-displaces-known-search-regression", 4.5, {"search": "search-regression"}),
         ("no-regression-flaky-noise", 7.5, {}),
         ("unpredicted-search-regression", 4.5, {"search": "search-regression"}),
     ]
