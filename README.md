@@ -1,21 +1,21 @@
 # TestBudget
 
-Transparent, revision-aware selection of CI execution units under a declared serial runtime budget. CI owners can reserve retries, require smoke groups and tag coverage, insist on unseen/stale exploration, and inspect an exact rational cost/signal/noise frontier. A frozen plan carries its prior evidence and explanations into result recording.
+Choose which CI suites or other runner units to run when a declared serial runtime budget cannot cover the full run. TestBudget uses prior revision/environment evidence to freeze a selection that reserves retries, requires smoke groups and tag coverage, and includes caller-requested unseen/stale exploration. CI owners can inspect an exact rational cost/signal/noise frontier; the frozen plan carries its prior evidence and explanations into result recording.
+
+中文：当 CI 时间预算不足以运行全部测试时，帮助维护者决定本次运行哪些测试、为何选择它们，并把真实执行结果记入下一次选择的历史。适合少量测试套件的预算试点；需要全量通过保证或大规模预测模型时不适用。
 
 **Scope:** offline pilot tool, at most 20 runner units for bounded exhaustive search. A runner unit can be a suite/class managed by your adapter. This is not a calibrated regression predictor; skipped outcomes remain unknown. Synthetic examples demonstrate decisions, not real-world accuracy or adoption.
 
 ## Install and run / 安装与运行
 
-Python 3.11 or newer; commands below work in PowerShell and POSIX shells from this repository. No runtime dependencies.
+Python 3.11 or newer; commands below work in PowerShell and POSIX shells from a clone of this repository. No runtime dependencies. Use an activated virtual environment if you want an isolated install (`python -m venv .venv`, then `.venv\Scripts\Activate.ps1` in PowerShell or `source .venv/bin/activate` in Bash).
 
 ```console
 python -m pip install .
-python -m unittest discover -s tests -v
 python examples/demo.py
-python examples/benchmark.py
 ```
 
-Demo writes `out/request.json`, `out/history.json`, a frozen plan, disclosed target outcomes, simulated execution and new history. It prints selected IDs, reserved seconds and history sizes. Benchmark writes the full per-policy report to `out/benchmark.json`; it includes an adverse exploration case. All fixtures are explicitly synthetic and published in `examples/fixtures.py`.
+Demo writes `out/request.json`, `out/history.json`, a frozen plan (`out/plan.json`), disclosed target outcomes (`out/outcomes.json`), simulated execution (`out/execution.json`) and new history (`out/next-history.json`). It prints selected IDs, reserved seconds and history sizes. Demo and CLI JSON outputs replace existing files atomically; use separate output names to retain earlier runs. All fixtures are explicitly synthetic and published in `examples/fixtures.py`.
 
 Expected demo output: selected `fresh, overlap, search, smoke`; reserve 7.5 seconds; 3 frontier points; history 135 -> 139 attempts. If the console script directory is not on PATH, use `python -m testbudget` in place of `testbudget`. The 11-case benchmark's measured synthetic catches, including losses to simple baselines, are recorded in [benchmark evidence](docs/BENCHMARK.md).
 
@@ -47,6 +47,12 @@ history = record(plan, execution, [])
 ```
 
 See [model and schema](docs/MODEL.md), [architecture and boundaries](docs/ARCHITECTURE.md), [benchmark interpretation](docs/BENCHMARK.md), [commercial pilot](docs/PILOT.md), [iteration evidence](docs/ITERATIONS.md), [security](SECURITY.md), and [contributing](CONTRIBUTING.md).
+
+## From the demo to CI / 从演示到 CI
+
+Build your own request/history JSON using [the field reference](docs/MODEL.md). Your runner consumes the frozen plan's `selected` IDs, executes those units, and emits actual attempts in `testbudget.execution.v1` with the plan digest. Feed that execution to `record`; use the returned history for the next revision. `simulate` is only the disclosed-outcome demonstration of this handoff. Keep one history writer and preserve the frozen plan with its run evidence.
+
+For optional verification, run `python -m unittest discover -s tests -v` and `python examples/benchmark.py`. The benchmark writes per-policy results to `out/benchmark.json`, including an adverse exploration case; read [the measured limits](docs/BENCHMARK.md) before interpreting them.
 
 ## Prior art and honest distinction
 
