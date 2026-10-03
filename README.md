@@ -8,6 +8,13 @@ Choose which CI suites or other runner units to run when a declared serial runti
 
 ## Install and run / 安装与运行
 
+With Git installed, start from a new checkout / 首次使用先克隆并进入目录：
+
+```console
+git clone https://github.com/lllleolin-max/testbudget.git
+cd testbudget
+```
+
 Python 3.11 or newer; commands below work in PowerShell and POSIX shells from a clone of this repository. No runtime dependencies. Use an activated virtual environment if you want an isolated install (`python -m venv .venv`, then `.venv\Scripts\Activate.ps1` in PowerShell or `source .venv/bin/activate` in Bash).
 
 ```console
