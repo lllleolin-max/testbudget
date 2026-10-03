@@ -82,17 +82,17 @@ def load_json(path: str | Path):
 def save_json(path: str | Path, data) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as stream:
-        temp = Path(stream.name)
-        try:
+    temp = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as stream:
+            temp = Path(stream.name)
             json.dump(data, stream, indent=2, ensure_ascii=False, allow_nan=False)
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-        except BaseException:
-            temp.unlink(missing_ok=True)
-            raise
-    try:
         os.replace(temp, path)
     finally:
-        temp.unlink(missing_ok=True)
+        # Close before cleanup: Windows cannot unlink an open NamedTemporaryFile.
+        # Serialization/fsync/replace failures all preserve the previous snapshot.
+        if temp is not None:
+            temp.unlink(missing_ok=True)

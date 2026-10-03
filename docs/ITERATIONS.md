@@ -19,3 +19,13 @@ Before: `8819993dfcb122eedd714e3f71c97e8cef5b46b5`. SDK ingestion review found `
 Correction: `validated_execution` now rejects INFEASIBLE and UNKNOWN plans before ingesting any rows. Valid feasible empty selections still work. Regression tests cover all three state cases and ensure simulator and recorder agree.
 
 Verification: normal wheel rebuild/reinstall; `python tests/review_probes.py 2` prints the explicit infeasible/unknown rejection and exits 0; full suite passes 22 tests. SDK demo and CLI select/simulate/record remain runnable. After commit is recorded in the following entry.
+
+Cycle 2 after: `a0cce43472c66df5c13c002c1e74d68af39a35d0`.
+
+## Cycle 3 — failed serialization leaked a temporary file on Windows
+
+Before: `a0cce43472c66df5c13c002c1e74d68af39a35d0`. The atomic writer's exception path attempted deletion while its NamedTemporaryFile was still open. `python tests/review_probes.py 3` on Windows printed `serialization_error: PermissionError`, `remaining_files: [snapshot.json, tmpo1mrn56d]`, and exited 1. The previous snapshot survived, but cleanup masked the true serialization error and leaked an artifact.
+
+Correction: one outer try/finally now encloses serialization, fsync and replacement, closes the stream before deletion, and cleans failure paths after the handle is closed. Regression tests independently exercise nonserializable sets, nonfinite JSON and injected replacement failure, requiring the old contents and no residual temp files.
+
+Verification: normal wheel rebuild/reinstall; `python tests/review_probes.py 3` prints `serialization_error: TypeError` and only `snapshot.json`, exit 0. Full suite passes 23 tests. All three probes, demo and benchmark execute on the updated normal wheel. After commit is recorded in the final evidence entry. Remaining boundary: externally killed processes may leave a temp file; no multiwriter lock or OS sandbox is claimed.

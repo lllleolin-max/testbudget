@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from testbudget import InputError, record, select, simulate
 from testbudget.cli import main
@@ -11,6 +12,21 @@ from test_core import request, row, unit
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_failed_serialization_and_replace_preserve_snapshot_clean_temp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "snapshot.json"
+            save_json(path, {"good": True})
+            for invalid in [{"not_json": {1, 2}}, {"nonfinite": float("nan")}]:
+                with self.assertRaises((TypeError, ValueError)):
+                    save_json(path, invalid)
+                self.assertEqual(load_json(path), {"good": True})
+                self.assertEqual(list(Path(directory).iterdir()), [path])
+            with patch("testbudget.workflow.os.replace", side_effect=OSError("injected replacement failure")):
+                with self.assertRaises(OSError):
+                    save_json(path, {"new": True})
+            self.assertEqual(load_json(path), {"good": True})
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+
     def test_record_rejects_infeasible_unknown_but_allows_feasible_empty(self):
         for req in [request([unit("x")], budget_seconds=0, mandatory_groups={"optional": 1}), request([unit("x")], exploration_min=1, max_states=1)]:
             p = select(req, [])
