@@ -11,6 +11,19 @@ from test_core import request, row, unit
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_record_rejects_infeasible_unknown_but_allows_feasible_empty(self):
+        for req in [request([unit("x")], budget_seconds=0, mandatory_groups={"optional": 1}), request([unit("x")], exploration_min=1, max_states=1)]:
+            p = select(req, [])
+            self.assertIn(p["status"], {"UNKNOWN", "INFEASIBLE"})
+            e = {"schema": "testbudget.execution.v1", "simulation": False, "plan_digest": p["freeze_digest"], "attempts": []}
+            with self.assertRaises(InputError):
+                record(p, e, [])
+            with self.assertRaises(InputError):
+                simulate(p, {})
+        p = select(request([unit("x")], budget_seconds=0), [])
+        self.assertEqual(p["status"], "FEASIBLE")
+        self.assertEqual(record(p, simulate(p, {}), []), [])
+
     def test_round_trip_idempotence_and_conflict(self):
         hist = [row("x", 1, True)]
         p = select(request([unit("x")], exploration_min=1, stale_after=2), hist)

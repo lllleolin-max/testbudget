@@ -29,6 +29,8 @@ def simulate(plan: dict, disclosed_outcomes: dict) -> dict:
 
 def validated_execution(plan: dict, execution: dict) -> list[dict]:
     verify_plan(plan)
+    if plan["status"] != "FEASIBLE":
+        raise InputError("cannot record execution of an infeasible/unknown plan")
     keys(execution, {"schema", "simulation", "plan_digest", "attempts", "disclosure"}, {"schema", "simulation", "plan_digest", "attempts"}, "execution")
     if execution["schema"] != "testbudget.execution.v1" or execution["plan_digest"] != plan["freeze_digest"] or not isinstance(execution["simulation"], bool):
         raise InputError("execution does not match plan")
