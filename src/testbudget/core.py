@@ -180,6 +180,88 @@ def dominates(a: tuple, b: tuple) -> bool:
     return a[0] <= b[0] and a[1] >= b[1] and a[2] <= b[2] and a != b
 
 
+class _SubsetSearch:
+    """Exact bounded preparation, with no table indexed by all 2**n subsets.
+
+    Each axis has one positive common denominator. Integer coefficients preserve
+    comparisons exactly; binary carries toggle fewer than two units per mask on
+    average. Only changed risk groups need a new maximum.
+    """
+
+    def __init__(self, request: dict, features: dict):
+        tests = request["tests"]
+        self.ids = tuple(t["id"] for t in tests)
+        axes = [[], [], []]
+        groups, tags, risk_levels = {}, {}, {}
+        exploration = 0
+        for i, test in enumerate(tests):
+            bit = 1 << i
+            feature = features[test["id"]]
+            axes[0].append(number(test["duration_seconds"], "duration") * test["runs"])
+            axes[1].append(Fraction(feature["signal_exact"]))
+            axes[2].append(Fraction(feature["noise_exact"]))
+            groups[test["group"]] = groups.get(test["group"], 0) | bit
+            for tag in test["tags"]:
+                tags[tag] = tags.get(tag, 0) | bit
+            if feature["exploration_eligible"]:
+                exploration |= bit
+            risk_levels.setdefault(test["risk_group"], []).append(i)
+        self.scales = tuple(math.lcm(*(v.denominator for v in axis)) for axis in axes)
+        coefficients = [tuple(v.numerator * (scale // v.denominator) for v in axis)
+                        for scale, axis in zip(self.scales, axes)]
+        self.costs, signals, self.noises = coefficients
+        self.unit_groups = [0] * len(tests)
+        self.tiers = []
+        for group_index, members in enumerate(risk_levels.values()):
+            levels = {}
+            for i in members:
+                self.unit_groups[i] = group_index
+                levels[signals[i]] = levels.get(signals[i], 0) | (1 << i)
+            self.tiers.append(tuple(sorted(levels.items(), reverse=True)))
+        self.maxima = [0] * len(self.tiers)
+        self.requirements = tuple((groups.get(g, 0), minimum) for g, minimum in request["mandatory_groups"].items()) + tuple(
+            (tags.get(tag, 0), minimum) for tag, minimum in request["coverage"].items()) + ((exploration, request["exploration_min"]),)
+        budget = number(request["budget_seconds"], "budget", zero=True) * self.scales[0]
+        self.budget = budget.numerator // budget.denominator
+        self.mask = self.cost = self.signal = self.noise = 0
+
+    def toggle(self, index: int, added: bool) -> None:
+        direction = 1 if added else -1
+        self.cost += direction * self.costs[index]
+        self.noise += direction * self.noises[index]
+
+    def advance(self, mask: int) -> tuple[int, int, int]:
+        changed = self.mask ^ mask
+        dirty = set()
+        while changed:
+            bit = changed & -changed
+            index = bit.bit_length() - 1
+            self.toggle(index, bool(mask & bit))
+            dirty.add(self.unit_groups[index])
+            changed ^= bit
+        for group in dirty:
+            maximum = next((value for value, members in self.tiers[group] if members & mask), 0)
+            self.signal += maximum - self.maxima[group]
+            self.maxima[group] = maximum
+        self.mask = mask
+        return self.cost, self.signal, self.noise
+
+    def feasible(self) -> bool:
+        return self.cost <= self.budget and all((self.mask & members).bit_count() >= minimum
+                                               for members, minimum in self.requirements)
+
+    def selected(self) -> tuple[str, ...]:
+        bits, ids = self.mask, []
+        while bits:
+            bit = bits & -bits
+            ids.append(self.ids[bit.bit_length() - 1])
+            bits ^= bit
+        return tuple(ids)
+
+    def fractions(self, values: tuple[int, int, int]) -> tuple[Fraction, Fraction, Fraction]:
+        return tuple(Fraction(value, scale) for value, scale in zip(values, self.scales))
+
+
 def select(request: dict, history: list[dict]) -> dict:
     """Freeze a prior-only decision. FEASIBLE is checked; exact requires complete search."""
     request, rows = normalize(request, history)
@@ -191,17 +273,17 @@ def select(request: dict, history: list[dict]) -> dict:
     if len(tests) > 20:
         plan["limits"].append("catalogue exceeds exact limit of 20 execution units; group runner units upstream")
     else:
-        budget = number(request["budget_seconds"], "budget", zero=True)
+        search = _SubsetSearch(request, features)
         frontier = []
         for mask in range(1 << len(tests)):
             if plan["visited_states"] >= request["max_states"]:
                 plan["limits"].append("max_states exhausted; frontier is a checked candidate frontier, not globally Pareto")
                 break
             plan["visited_states"] += 1
-            ids = tuple(t["id"] for i, t in enumerate(tests) if mask & (1 << i))
-            values = measure(request, features, ids)
-            if values[0] > budget or violations(request, features, ids):
+            values = search.advance(mask)
+            if not search.feasible():
                 continue
+            ids = search.selected()
             if any(dominates(v, values) or (v == values and old <= ids) for old, v in frontier):
                 continue
             frontier = [(old, v) for old, v in frontier if not dominates(values, v) and not (v == values and ids < old)]
@@ -209,10 +291,14 @@ def select(request: dict, history: list[dict]) -> dict:
         else:
             plan["complete"] = True
         frontier.sort(key=lambda entry: (entry[1][0], -entry[1][1], entry[1][2], entry[0]))
-        plan["frontier"] = [point(ids, values) for ids, values in frontier]
+        plan["frontier"] = [point(ids, search.fractions(values)) for ids, values in frontier]
         if frontier:
             weight = number(request["noise_weight"], "noise_weight", zero=True)
-            ids, values = min(frontier, key=lambda e: (-(e[1][1] - weight * e[1][2]), e[1][0], e[0]))
+            _, signal_scale, noise_scale = search.scales
+            def utility(values):
+                return values[1] * noise_scale * weight.denominator - weight.numerator * values[2] * signal_scale
+            ids, values = min(frontier, key=lambda e: (-utility(e[1]), e[1][0], e[0]))
+            values = search.fractions(values)
             plan.update(status="FEASIBLE", selected=list(ids), selected_point=point(ids, values), utility_exact=str(values[1] - weight * values[2]))
         elif plan["complete"]:
             plan["status"] = "INFEASIBLE"
