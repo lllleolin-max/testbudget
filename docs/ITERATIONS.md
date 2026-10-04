@@ -1,5 +1,10 @@
 # Implementation and self-review evidence
 
+The original 0.1 cycles below are retained. The separate
+[0.2 update record](UPDATE_0_2_0.md) documents exact-work optimization, raw
+full-report/prefix checks, resource counterexamples and installed delivery in
+three honest review stages; stages without defects are not counted as fixes.
+
 Initial working build: `a605c4c9d3bbd9bb8295057c5438359edc35deba`. Normal wheel build/install, 19 tests, SDK demo and five-case benchmark passed on Windows/Python 3.14.3. Demo selected fresh/overlap/search/smoke, 7.5 reserved seconds, history 135 -> 139. This document does not substitute for independent scoring.
 
 ## Cycle 1 — initial broken tests were counted as regression evidence
@@ -36,7 +41,7 @@ Cycle 3 after: `b9327676f9c5015c62f64c2a19105c7e2a5f490d`.
 
 Added a true five-round walk-forward common-history replay (target 10..14), explicit losses to hard-constraint-respecting baselines, tests for reveal ordering/cutoff, all-flaky hard exploration, history numeric/support bounds, and exploration rotation after recording. These are additional evidence improvements, **not counted as any of the three correction cycles**. On the wheel, 28 tests pass, including 50 generated exhaustive oracle cases and all 11 executable benchmark cases. Tests do not demonstrate calibration or real deployment safety. CI matrix is declared for Ubuntu/Windows and Python 3.11/3.14; remote CI has not run at local completion.
 
-To reproduce from any reviewed checkout in a fresh environment:
+To reproduce the original 0.1 reviewed checkout in a fresh environment:
 
 ```console
 python -m venv .venv-review

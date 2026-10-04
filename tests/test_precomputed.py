@@ -3,7 +3,7 @@ from fractions import Fraction
 from math import lcm
 import unittest
 
-from testbudget import select, verify_plan
+from testbudget import InputError, select, verify_plan
 from testbudget.core import measure, violations
 from raw_oracle import cases, reference
 
@@ -62,6 +62,21 @@ class ExactPreparationTests(unittest.TestCase):
                     {"id": "x", "duration_seconds": .1, "group": "g", "risk_group": "r", "tags": ["api", "api"]}],
                     field: {"missing": 2000}, "max_states": maximum}
                 self.assertEqual(select(req, []), reference(req, []))
+
+    def test_full_history_validation_precedes_cached_search(self):
+        req = {"revision": 1, "budget_seconds": 0, "tests": [
+            {"id": "x", "duration_seconds": 1, "group": "g", "risk_group": "r"}]}
+        # Valid future rows never enter training, but still must be validated.
+        rows = [{"test_id": "other", "revision": revision, "attempt": 1,
+                 "passed": True, "duration_seconds": 1} for revision in range(1, 100001)]
+        plan = select(req, rows)
+        self.assertEqual(plan["prior_history"], [])
+        self.assertTrue(plan["complete"])
+        with self.assertRaises(InputError):
+            select(req, rows + [rows[0]])
+        rows[-1]["duration_seconds"] = -1
+        with self.assertRaises(InputError):
+            select(req, rows)
 
 
 if __name__ == "__main__":

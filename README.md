@@ -55,6 +55,19 @@ history = record(plan, execution, [])
 
 See [model and schema](docs/MODEL.md), [architecture and boundaries](docs/ARCHITECTURE.md), [benchmark interpretation](docs/BENCHMARK.md), [commercial pilot](docs/PILOT.md), [iteration evidence](docs/ITERATIONS.md), [security](SECURITY.md), and [contributing](CONTRIBUTING.md).
 
+## Search work in 0.2
+
+The solver now prepares exact unit coefficients and bitmask requirements once,
+then updates changed units as binary masks advance. Duplicate risk groups still
+contribute their maximum signal. The 20-unit limit, state prefix, all Pareto
+points and full `testbudget.plan.v1` reports are preserved; old frozen plans can
+be reverified with the same digest. No additional runtime dependency is needed.
+
+See [search measurements and reproduction](docs/SEARCH.md) and the
+[0.2 update record](docs/UPDATE_0_2_0.md). Preparation can cost more on tiny inputs,
+and a large Pareto frontier still consumes substantial time and memory. This
+optimization does not expand supported scope or promise a production speedup.
+
 ## From the demo to CI / 从演示到 CI
 
 Build your own request/history JSON using [the field reference](docs/MODEL.md). Your runner consumes the frozen plan's `selected` IDs, executes those units, and emits actual attempts in `testbudget.execution.v1` with the plan digest. Feed that execution to `record`; use the returned history for the next revision. `simulate` is only the disclosed-outcome demonstration of this handoff. Keep one history writer and preserve the frozen plan with its run evidence.

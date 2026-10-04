@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "testbudget"
-version = "0.2.0.dev2"
+version = "0.2.0"
 description = "Auditable revision-aware CI execution-budget selection"
 requires-python = ">=3.11"
 license = "MIT"
