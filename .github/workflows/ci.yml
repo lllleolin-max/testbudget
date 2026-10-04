@@ -15,10 +15,11 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip build
       - run: python -m build --wheel
-      - run: python -m pip install --no-deps --force-reinstall dist/testbudget-0.1.0-py3-none-any.whl
+      - run: python -c "import glob,subprocess,sys; wheels=glob.glob('dist/testbudget-*.whl'); assert len(wheels)==1; subprocess.check_call([sys.executable,'-m','pip','install','--no-deps','--force-reinstall',wheels[0]])"
       - run: python -m unittest discover -s tests -v
       - run: python examples/demo.py
       - run: python examples/benchmark.py
+      - run: python benchmarks/selection_work.py --case frontier --units 8 --max-states 256 --output out/search-work
       - run: python -m testbudget select --request out/request.json --history out/history.json --out out/cli-plan.json
       - run: python -m testbudget simulate --plan out/cli-plan.json --outcomes out/outcomes.json --out out/cli-execution.json
       - run: python -m testbudget record --plan out/cli-plan.json --execution out/cli-execution.json --history out/history.json --out out/cli-history.json

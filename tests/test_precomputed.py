@@ -1,4 +1,6 @@
 from copy import deepcopy
+from fractions import Fraction
+from math import lcm
 import unittest
 
 from testbudget import select, verify_plan
@@ -36,6 +38,30 @@ class ExactPreparationTests(unittest.TestCase):
                 self.assertEqual(tuple(map(str, values)), (point["reserved_seconds_exact"], point["signal_exact"], point["noise_exact"]))
                 self.assertEqual(violations(req, features, point["selected"]), [])
             self.assertEqual(violations(req, features, ["unknown", "unknown"])[0], "unknown or repeated selected identity")
+
+    def test_all_feasible_subsets_can_remain_on_large_frontier(self):
+        signals = [Fraction(i + 2, 2 * i + 5) for i in range(8)]
+        scale = lcm(*(v.denominator for v in signals))
+        tests, history = [], []
+        for i, signal in enumerate(signals):
+            ident = str(i)
+            tests.append({"id": ident, "duration_seconds": int(signal * scale), "group": "g", "risk_group": ident})
+            for revision in range(1, i + 3):
+                history.append({"test_id": ident, "revision": revision, "attempt": 1,
+                                "passed": revision == 1, "duration_seconds": 1})
+        req = {"revision": 20, "budget_seconds": sum(t["duration_seconds"] for t in tests), "tests": tests, "max_states": 256}
+        plan = select(req, history)
+        self.assertEqual(plan, reference(req, history))
+        self.assertTrue(plan["complete"])
+        self.assertEqual(len(plan["frontier"]), 256)
+
+    def test_missing_and_unattainable_constraint_counts(self):
+        for field in ("mandatory_groups", "coverage"):
+            for maximum in (1, 4):
+                req = {"revision": 3, "budget_seconds": 1, "tests": [
+                    {"id": "x", "duration_seconds": .1, "group": "g", "risk_group": "r", "tags": ["api", "api"]}],
+                    field: {"missing": 2000}, "max_states": maximum}
+                self.assertEqual(select(req, []), reference(req, []))
 
 
 if __name__ == "__main__":
